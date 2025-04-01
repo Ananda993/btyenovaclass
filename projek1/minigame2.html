@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Slot Machine 🎰</title>
+    <style>
+        body {
+            background: linear-gradient(45deg, #1a1a2e, #16213e, #1a1a2e);
+            color: #f1f1f1;
+            font-family: 'Orbitron', sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        h1 {
+            color: #00f4a1;
+            text-shadow: 0 0 10px #00f4a1;
+            font-size: 2.5em;
+        }
+
+        .game-container {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 30px;
+            border-radius: 20px;
+            max-width: 800px;
+            margin: 20px auto;
+            box-shadow: 0 0 30px rgba(0, 244, 161, 0.2);
+        }
+
+        .slot-machine {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin: 40px auto;
+            padding: 20px;
+            background: rgba(42, 42, 79, 0.5);
+            border-radius: 15px;
+        }
+
+        .reel {
+            width: 120px;
+            height: 120px;
+            font-size: 48px;
+            border: 4px solid #00f4a1;
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(145deg, #2a2a4f, #1e1e2f);
+            box-shadow: 0 0 25px rgba(0, 244, 161, 0.4);
+        }
+
+        .reel.spinning {
+            animation: spin 0.5s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotateX(0deg); }
+            100% { transform: rotateX(360deg); }
+        }
+
+        .controls {
+            margin-top: 20px;
+        }
+
+        button {
+            background: linear-gradient(45deg, #00c78e, #00f4a1);
+            color: white;
+            padding: 15px 30px;
+            font-size: 20px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        #message {
+            font-size: 20px;
+            margin-top: 20px;
+            color: #00f4a1;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>🎰 Tech Slot Machine 🎰</h1>
+        <p>Coins: <span id="coins">100</span></p>
+
+        <div class="slot-machine">
+            <div class="reel" id="reel1">💻</div>
+            <div class="reel" id="reel2">🤖</div>
+            <div class="reel" id="reel3">🔧</div>
+        </div>
+
+        <div class="controls">
+            <button id="spinButton">Spin (10 coins)</button>
+            <button id="resetButton">Reset</button>
+        </div>
+
+        <p id="message"></p>
+    </div>
+
+    <script>
+        const symbols = ["💻", "🤖", "🔧", "🖥️", "⚙️", "📟"];
+        let coins = 100;
+        const coinsDisplay = document.getElementById("coins");
+        const spinButton = document.getElementById("spinButton");
+        const resetButton = document.getElementById("resetButton");
+        const message = document.getElementById("message");
+        const reels = [
+            document.getElementById("reel1"),
+            document.getElementById("reel2"),
+            document.getElementById("reel3")
+        ];
+
+        function getRandomSymbol() {
+            return symbols[Math.floor(Math.random() * symbols.length)];
+        }
+
+        function spinReels() {
+            if (coins < 10) {
+                message.innerText = "🚫 Not enough coins!";
+                return;
+            }
+
+            coins -= 10;
+            coinsDisplay.innerText = coins;
+            message.innerText = "🎲 Spinning...";
+
+            spinButton.disabled = true;
+            resetButton.disabled = true;
+
+            let results = [];
+            let completedReels = 0;
+
+            reels.forEach((reel, index) => {
+                reel.classList.add("spinning");
+
+                setTimeout(() => {
+                    reel.classList.remove("spinning");
+                    let symbol = getRandomSymbol();
+                    reel.innerText = symbol;
+                    results.push(symbol);
+
+                    completedReels++;
+
+                    if (completedReels === reels.length) {
+                        checkWin(results);
+                    }
+                }, (index + 1) * 800);
+            });
+        }
+
+        function checkWin(results) {
+            spinButton.disabled = false;
+            resetButton.disabled = false;
+
+            const [r1, r2, r3] = results;
+
+            if (r1 === r2 && r2 === r3) {
+                let reward = 50;
+                if (r1 === "💻") reward = 100;
+                if (r1 === "⚙️") reward = 75;
+
+                coins += reward;
+                message.innerText = `🎉 JACKPOT! +${reward} coins!`;
+            } else if (r1 === r2 || r2 === r3 || r1 === r3) {
+                let reward = 20;
+                coins += reward;
+                message.innerText = `🎈 Small Win! +${reward} coins!`;
+            } else {
+                message.innerText = "😢 Try again!";
+            }
+
+            coinsDisplay.innerText = coins;
+        }
+
+        function resetGame() {
+            coins = 100;
+            coinsDisplay.innerText = coins;
+            message.innerText = "Game Reset!";
+        }
+
+        spinButton.addEventListener("click", spinReels);
+        resetButton.addEventListener("click", resetGame);
+    </script>
+</body>
+</html>
