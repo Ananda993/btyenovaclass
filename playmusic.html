@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Btyenova Music Player</title>
+  <style>
+    /* Tema UI yang lebih santai */
+    body {
+      background: #f7f7f7;
+      color: #333;
+      font-family: 'Helvetica Neue', sans-serif;
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .player-container {
+      background: #fff;
+      padding: 2rem;
+      border-radius: 15px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+      width: 350px;
+      text-align: center;
+    }
+    .music-info {
+      margin-bottom: 1.5rem;
+    }
+    .album-art {
+      width: 200px;
+      height: 200px;
+      border-radius: 10px;
+      margin: 0 auto 1rem;
+      transition: transform 0.5s ease;
+    }
+    .album-art.playing {
+      transform: scale(1.05);
+    }
+    .progress-container {
+      background: #ddd;
+      border-radius: 5px;
+      cursor: pointer;
+      margin: 15px 0;
+      height: 6px;
+      width: 100%;
+    }
+    .progress {
+      background: #4a90e2;
+      border-radius: 5px;
+      height: 100%;
+      width: 0%;
+      transition: width 0.1s linear;
+    }
+    .time {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      margin-bottom: 10px;
+    }
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      margin-bottom: 15px;
+    }
+    .btn {
+      background: #4a90e2;
+      border: none;
+      color: #fff;
+      padding: 0.5rem 1rem;
+      border-radius: 50px;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: background 0.3s ease;
+    }
+    .btn:hover {
+      background: #357ab8;
+    }
+    .playlist {
+      max-height: 150px;
+      overflow-y: auto;
+      text-align: left;
+      margin-top: 1rem;
+    }
+    .playlist-item {
+      padding: 0.5rem;
+      cursor: pointer;
+      border-bottom: 1px solid #eee;
+      transition: background 0.3s ease;
+    }
+    .playlist-item:hover {
+      background: #f0f0f0;
+    }
+    .playlist-item.active {
+      background: #e0f0ff;
+      font-weight: bold;
+    }
+    /* Canvas untuk visualisasi nada */
+    #visualizer {
+      margin-top: 15px;
+      width: 100%;
+      height: 80px;
+      background: #fafafa;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="player-container">
+    <div class="music-info">
+      <img src="https://via.placeholder.com/200" alt="Album Art" class="album-art" id="albumArt" />
+      <h2 id="title">Song Title</h2>
+      <p id="artist">Artist Name</p>
+    </div>
+
+    <div class="time">
+      <span id="currentTime">0:00</span>
+      <span id="duration">0:00</span>
+    </div>
+
+    <div class="progress-container" id="progressContainer">
+      <div class="progress" id="progress"></div>
+    </div>
+
+    <div class="controls">
+      <button class="btn" id="prevBtn">⏮</button>
+      <button class="btn" id="playBtn">▶</button>
+      <button class="btn" id="nextBtn">⏭</button>
+    </div>
+
+    <canvas id="visualizer"></canvas>
+
+    <div class="playlist" id="playlist">
+      <!-- Playlist items will be added here -->
+    </div>
+  </div>
+
+  <script>
+    const songs = [
+      {
+        title: 'Btye It Indo versi indonesia',
+        artist: 'btyenova',
+        file: 'music/BYTE IT INDO VERS SAMPEL.mp3',
+        cover: 'https://via.placeholder.com/200/FFB6C1/333333?text=Indo+Vibes'
+      },
+      {
+        title: 'Btye It Indo versi inggris',
+        artist: 'btyenova',
+        file: 'music/BYTE IT SAMPEL V2.mp3',
+        cover: 'https://via.placeholder.com/200/ADD8E6/333333?text=Chill+Beats'
+      },
+      {
+        title: 'btye it v1',
+        artist: 'btyenova',
+        file: 'music/BYTE IT SAMPEL.mp3',
+        cover: 'https://via.placeholder.com/200/90EE90/333333?text=Relax+Tunes'
+      }
+    ];
+
+    let currentSongIndex = 0;
+    let isPlaying = false;
+    const audio = new Audio();
+
+    // DOM Elements
+    const playBtn = document.getElementById('playBtn');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const progressContainer = document.getElementById('progressContainer');
+    const progress = document.getElementById('progress');
+    const currentTimeEl = document.getElementById('currentTime');
+    const durationEl = document.getElementById('duration');
+    const albumArt = document.getElementById('albumArt');
+    const titleEl = document.getElementById('title');
+    const artistEl = document.getElementById('artist');
+    const playlist = document.getElementById('playlist');
+    const canvas = document.getElementById('visualizer');
+    const ctx = canvas.getContext('2d');
+
+    // AudioContext and Analyzer untuk visualisasi nada
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const analyser = audioContext.createAnalyser();
+    analyser.fftSize = 256;
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    let animationId;
+
+    // Hubungkan audio ke analyzer
+    const source = audioContext.createMediaElementSource(audio);
+    source.connect(analyser);
+    analyser.connect(audioContext.destination);
+
+    // Fungsi Visualisasi
+    function drawVisualizer() {
+      animationId = requestAnimationFrame(drawVisualizer);
+      analyser.getByteFrequencyData(dataArray);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const barWidth = (canvas.width / bufferLength) * 1.5;
+      let barHeight;
+      let x = 0;
+
+      for (let i = 0; i < bufferLength; i++) {
+        barHeight = dataArray[i];
+        ctx.fillStyle = '#4a90e2';
+        ctx.fillRect(x, canvas.height - barHeight / 2, barWidth, barHeight / 2);
+        x += barWidth + 1;
+      }
+    }
+
+    // Fungsi untuk load lagu
+    function loadSong(index) {
+      const song = songs[index];
+      audio.src = song.file;
+      titleEl.textContent = song.title;
+      artistEl.textContent = song.artist;
+      albumArt.src = song.cover;
+      updatePlaylist();
+      // Reset tampilan waktu
+      currentTimeEl.textContent = '0:00';
+      durationEl.textContent = '0:00';
+    }
+
+    function updatePlaylist() {
+      playlist.innerHTML = '';
+      songs.forEach((song, index) => {
+        const div = document.createElement('div');
+        div.classList.add('playlist-item');
+        if (index === currentSongIndex) div.classList.add('active');
+        div.textContent = `${song.title} - ${song.artist}`;
+        div.addEventListener('click', () => {
+          currentSongIndex = index;
+          loadSong(currentSongIndex);
+          playSong();
+        });
+        playlist.appendChild(div);
+      });
+    }
+
+    function playSong() {
+      isPlaying = true;
+      playBtn.textContent = '⏸';
+      albumArt.classList.add('playing');
+      // Mulai visualisasi
+      drawVisualizer();
+      audio.play();
+    }
+
+    function pauseSong() {
+      isPlaying = false;
+      playBtn.textContent = '▶';
+      albumArt.classList.remove('playing');
+      cancelAnimationFrame(animationId);
+      audio.pause();
+    }
+
+    function prevSong() {
+      currentSongIndex = (currentSongIndex - 1 + songs.length) % songs.length;
+      loadSong(currentSongIndex);
+      playSong();
+    }
+
+    function nextSong() {
+      currentSongIndex = (currentSongIndex + 1) % songs.length;
+      loadSong(currentSongIndex);
+      playSong();
+    }
+
+    // Update progress bar dan waktu
+    function updateProgress(e) {
+      const { duration, currentTime } = e.srcElement;
+      const progressPercent = (currentTime / duration) * 100;
+      progress.style.width = `${progressPercent}%`;
+
+      // Update tampilan waktu sekarang
+      const minutes = Math.floor(currentTime / 60);
+      const seconds = Math.floor(currentTime % 60)
+        .toString()
+        .padStart(2, '0');
+      currentTimeEl.textContent = `${minutes}:${seconds}`;
+
+      // Update tampilan durasi total (ditampilkan dalam menit & detik)
+      if (duration) {
+        const durMinutes = Math.floor(duration / 60);
+        const durSeconds = Math.floor(duration % 60)
+          .toString()
+          .padStart(2, '0');
+        durationEl.textContent = `${durMinutes} menit ${durSeconds} detik`;
+      }
+    }
+
+    // Set progress berdasarkan klik pada progress bar
+    function setProgress(e) {
+      const width = this.clientWidth;
+      const clickX = e.offsetX;
+      const duration = audio.duration;
+      audio.currentTime = (clickX / width) * duration;
+    }
+
+    // Event Listeners
+    playBtn.addEventListener('click', () => {
+      // Untuk mengaktifkan AudioContext bila belum aktif (beberapa browser memerlukan interaksi user)
+      if (audioContext.state === 'suspended') {
+        audioContext.resume();
+      }
+      isPlaying ? pauseSong() : playSong();
+    });
+    prevBtn.addEventListener('click', prevSong);
+    nextBtn.addEventListener('click', nextSong);
+    audio.addEventListener('timeupdate', updateProgress);
+    progressContainer.addEventListener('click', setProgress);
+    audio.addEventListener('ended', nextSong);
+
+    // Sesuaikan ukuran canvas agar responsif
+    function resizeCanvas() {
+      canvas.width = canvas.clientWidth;
+      canvas.height = canvas.clientHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // Inisialisasi lagu pertama
+    loadSong(currentSongIndex);
+  </script>
+</body>
+</html>
